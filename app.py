@@ -63,15 +63,16 @@ def normalize_column_name(col: str) -> str:
 
     return col.strip("_")
 
-
 def normalize_datetime_for_bq(series: pd.Series) -> pd.Series:
     """
-    Genera fechas compatibles con el MERGE actual de BigQuery:
-    SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', marca_temporal)
+    Convierte fechas al formato:
+    dd/mm/yyyy HH:MM:SS
+
+    Ejemplo:
+    01/06/2026 00:34:44
     """
     dt = pd.to_datetime(series, errors="coerce", dayfirst=True)
-    return dt.dt.strftime("%Y-%m-%d %H:%M:%S")
-
+    return dt.dt.strftime("%d/%m/%Y %H:%M:%S")
 
 def read_uploaded_file(uploaded_file):
     file_name = uploaded_file.name.lower()
