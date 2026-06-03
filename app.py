@@ -63,16 +63,27 @@ def normalize_column_name(col: str) -> str:
 
     return col.strip("_")
 
-def normalize_datetime_for_bq(series: pd.Series) -> pd.Series:
+
+def normalize_datetime_latam(series: pd.Series) -> pd.Series:
     """
-    Convierte fechas al formato:
-    dd/mm/yyyy HH:MM:SS
+    Convierte fechas al formato latino:
+    día/mes/año hora:minuto:segundo
 
     Ejemplo:
     01/06/2026 00:34:44
+    31/05/2026 10:09:33
     """
-    dt = pd.to_datetime(series, errors="coerce", dayfirst=True)
+
+    # Primero intenta convertir interpretando día/mes/año.
+    dt = pd.to_datetime(
+        series,
+        errors="coerce",
+        dayfirst=True
+    )
+
+    # Devuelve el formato requerido: dd/mm/yyyy HH:MM:SS
     return dt.dt.strftime("%d/%m/%Y %H:%M:%S")
+
 
 def read_uploaded_file(uploaded_file):
     file_name = uploaded_file.name.lower()
@@ -94,26 +105,42 @@ def clean_dataframe(df: pd.DataFrame):
     original_rows = len(df)
     original_columns = list(df.columns)
 
+    # Normalizar nombres de columnas
     df.columns = [normalize_column_name(c) for c in df.columns]
 
+    # Renombrar columnas conocidas
     df.rename(columns=RENAME_MAP, inplace=True)
 
+    # Eliminar columnas no necesarias
     df.drop(columns=[c for c in COLUMNS_TO_DROP if c in df.columns], inplace=True)
 
+    # Agregar columnas faltantes
     missing_columns = [c for c in EXPECTED_COLUMNS if c not in df.columns]
     for col in missing_columns:
         df[col] = pd.NA
 
+    # Detectar columnas extra antes de ordenar
     extra_columns = [c for c in df.columns if c not in EXPECTED_COLUMNS]
 
+    # Ordenar columnas finales
     df = df[EXPECTED_COLUMNS]
 
+    # Limpiar espacios en blanco
     for col in df.columns:
         df[col] = df[col].astype("string").str.strip()
 
-    for col in ["marca_temporal", "hora_recepcion_de_caso"]:
-        df[col] = normalize_datetime_for_bq(df[col])
+    # Convertir fechas al formato día/mes/año hora:minuto:segundo
+    date_columns = [
+        "marca_temporal",
+        "hora_recepcion_de_caso",
+        "fecha_de_cita_por_direccion"
+    ]
 
+    for col in date_columns:
+        if col in df.columns:
+            df[col] = normalize_datetime_latam(df[col])
+
+    # Reemplazar valores vacíos o inválidos
     df = df.replace({
         "nan": pd.NA,
         "NaN": pd.NA,
@@ -123,11 +150,13 @@ def clean_dataframe(df: pd.DataFrame):
         "": pd.NA
     })
 
+    # Eliminar filas sin número de código
     before_filter = len(df)
     df = df[df["numero_de_codigo"].notna()]
     df = df[df["numero_de_codigo"].astype(str).str.strip() != ""]
     removed_without_code = before_filter - len(df)
 
+    # Detectar códigos duplicados
     duplicated_codes = df["numero_de_codigo"].astype(str).str.strip().str.upper().duplicated().sum()
 
     summary = {
