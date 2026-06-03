@@ -66,24 +66,25 @@ def normalize_column_name(col: str) -> str:
 
 def normalize_datetime_latam(series: pd.Series) -> pd.Series:
     """
-    Convierte fechas al formato latino:
+    Convierte fechas al formato final:
     día/mes/año hora:minuto:segundo
 
+    Corrige casos donde el archivo original viene como:
+    mes/día/año hora:minuto:segundo
+
     Ejemplo:
-    01/06/2026 00:34:44
-    31/05/2026 10:09:33
+    06/02/2026 17:15:53  ->  02/06/2026 17:15:53
     """
 
-    # Primero intenta convertir interpretando día/mes/año.
     dt = pd.to_datetime(
         series,
         errors="coerce",
-        dayfirst=True
+        dayfirst=False
     )
 
+    return dt.dt.strftime("%d/%m/%Y %H:%M:%S")
     # Devuelve el formato requerido: dd/mm/yyyy HH:MM:SS
     return dt.dt.strftime("%d/%m/%Y %H:%M:%S")
-
 
 def read_uploaded_file(uploaded_file):
     file_name = uploaded_file.name.lower()
